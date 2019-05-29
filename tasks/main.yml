@@ -1,0 +1,107 @@
+
+- name: ensure a list of packages installed
+  yum:
+    name: "{{ packages }}"
+  vars:
+    packages:
+    - unzip
+    - scap-security-guide
+
+- name: create scarp working directory
+  file:
+   path: "/var/scarp"
+   state: directory
+   mode: 0755
+
+- name: create scap report directory
+  file:
+   path: "/var/scarp/reports"
+   state: directory
+   mode: 0755
+
+- name: create scap ocp report directory
+  file:
+   path: "/var/scarp/reports/ocp"
+   state: directory
+   mode: 0755
+
+- name: create scap rhel report directory
+  file:
+   path: "/var/scarp/reports/rhel"
+   state: directory
+   mode: 0755
+
+- name: create scap rhel report directory
+  file:
+   path: "/var/scarp/reports/thales"
+   state: directory
+   mode: 0755
+
+- name: copy scap security guide release
+  copy:
+    src: "{{ role_path }}/files/scap-security-guide-0.1.44.zip"
+    dest: /var/scarp
+    owner: ansible
+    group: ansible
+    mode: 0644
+
+- name: copy Thales scap security guide release
+  copy:
+    src: "{{ role_path }}/files/ssg-rhel7-ds-thales-mds-1-1.noarch.rpm"
+    dest: /var/scarp
+    owner: ansible
+    group: ansible
+    mode: 0644
+
+- name: Unarchive scap security guide release
+  unarchive:
+    src: /var/scarp/scap-security-guide-0.1.44.zip
+    dest: /var/scarp
+    remote_src: yes
+
+- name: install Thales scap profile rpm from a local file
+  yum:
+    name: /var/scarp/ssg-rhel7-ds-thales-mds-1-1.noarch.rpm
+    state: present
+
+- name: run scap scan on masters for OCP3 profile
+  shell: 'oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_opencis-master --results-arf arf.xml --report /var/scarp/reports/ocp/report.html --oval-results /var/scarp/scap-security-guide-0.1.44/ssg-ocp3-ds.xml'
+  ignore_errors: True
+  when: inventory_hostname in groups.masters
+
+- name: run scap scan on nodes for OCP3 profile
+  shell: 'oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_opencis-node --results-arf arf.xml --report /var/scarp/reports/ocp/report.html --oval-results /var/scarp/scap-security-guide-0.1.44/ssg-ocp3-ds.xml'
+  ignore_errors: True
+  when: inventory_hostname in groups.nodes
+
+- name: fetch reports
+  fetch:
+    src: /var/scarp/reports/ocp/report.html
+    dest: {{ nginx_data_root_dir }}/reports/ocp/{{ inventory_hostname }}.html
+    flat: yes
+  become: yes
+
+
+- name: run scap scan on nodes for rhel profile
+  shell: 'oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_stig-rhel7-disa --results-arf arf.xml --report /var/scarp/reports/rhel/report.html --oval-results /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml'
+  ignore_errors: True
+
+
+- name: fetch reports
+  fetch:
+    src: /var/scarp/reports/rhel/report.html
+    dest: {{ nginx_data_root_dir }}/reports/rhel/{{ inventory_hostname }}.html
+    flat: yes
+  become: yes
+
+
+- name: run scap scan on nodes for Thales profile
+  shell: 'oscap xccdf eval --profile xccdf_mds.edge.thales_profile_OCP_Node --results-arf arf.xml --report /var/scarp/reports/thales/report.html --oval-results /usr/share/xml/scap/ssg-rhel7-ds-thales-mds/tailoring-xccdf.xml'
+  ignore_errors: True
+
+- name: fetch reports
+  fetch:
+    src: /var/scarp/reports/thales/report.html
+    dest: {{ nginx_data_root_dir }}/reports/thales/{{ inventory_hostname }}.html
+    flat: yes
+  become: yes
