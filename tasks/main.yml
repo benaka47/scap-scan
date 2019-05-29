@@ -31,7 +31,7 @@
    state: directory
    mode: 0755
 
-- name: create scap rhel report directory
+- name: create scap custom report directory
   file:
    path: "/var/scarp/reports/thales"
    state: directory
